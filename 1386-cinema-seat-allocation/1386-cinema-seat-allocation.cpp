@@ -1,42 +1,31 @@
 class Solution {
 public:
-    int maxNumberOfFamilies(int n, vector<vector<int>>& reservedSeats) {
-        unordered_map<int, int> mp;
-
-        for (auto &seat : reservedSeats) {
-            int row = seat[0];
-            int col = seat[1];
-
-            mp[row] |= (1 << col);
+    static int maxNumberOfFamilies(int n, vector<vector<int>>& reservedSeats) {
+        const int m=reservedSeats.size();
+        unordered_map<int, uint8_t> seat;
+        seat.reserve(m);
+        for(auto& r: reservedSeats){
+            const int i=r[0]-1, j=r[1]-2;
+            if (j<0 || j>=8) continue;
+            seat[i]|=1<<j;
         }
-
-        int total = 2 * n;
-
-        for (auto &[row, mask] : mp) {
-            bool left  = !(mask & (1 << 2)) &&
-                        !(mask & (1 << 3)) &&
-                        !(mask & (1 << 4)) &&
-                        !(mask & (1 << 5));
-
-            bool middle = !(mask & (1 << 4)) &&
-                        !(mask & (1 << 5)) &&
-                        !(mask & (1 << 6)) &&
-                        !(mask & (1 << 7));
-
-            bool right = !(mask & (1 << 6)) &&
-                        !(mask & (1 << 7)) &&
-                        !(mask & (1 << 8)) &&
-                        !(mask & (1 << 9));
-
-            if (left && right)
-                continue;       // already counted 2
-
-            if (left || middle || right)
-                total--;        // this row gets only 1
-            else
-                total -= 2;     // this row gets 0
+        int sz=seat.size(), cnt=(n-sz)*2;
+        const uint8_t A=15, B=15<<2, C=15<<4, D=A|C;
+        for(auto [_, S]: seat){
+            S=~S;
+            bool has2=(S&D)==D, 
+            has1=(!has2)&& ((S&A)==A||(S&B)==B ||(S&C)==C);
+            cnt+=has2<<1;
+            cnt+=has1;
         }
-
-        return total;
+        return cnt;
     }
 };
+
+
+auto init = []() {
+    ios::sync_with_stdio(0);
+    cin.tie(0);
+    cout.tie(0);
+    return 'c';
+}();
