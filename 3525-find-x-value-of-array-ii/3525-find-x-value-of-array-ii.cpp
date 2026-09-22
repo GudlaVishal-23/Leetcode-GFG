@@ -1,130 +1,100 @@
-class Solution {
-    struct Info {
-        vector<int> ways;
-        int whole;
+class SegmentTree {
+private:
+    static const int MAXK = 6;
+    int k;
+    int n;
+    vector<array<int, MAXK>> tree; 
 
-        Info(int k) : ways(k, 0), whole(1) {}
-    };
+    void makeLeaf(int o, int value) {
+        tree[o].fill(0);
+        int r = value % k;
+        tree[o][r] = 1;
+        tree[o][k] = r;  // mul
+    }
 
-    struct SegmentTree {
-        int size;
-        int mod;
-        vector<Info> tree;
+    void mergePre(const array<int, MAXK>& left, const array<int, MAXK>& right, array<int, MAXK>& result) {
+        result.fill(0);
+        
+        int mulL = left[k];
+        int mulR = right[k];
+        result[k] = (mulL * mulR) % k;
 
-        SegmentTree(vector<int>& nums, int k) {
-            mod = k;
-            size = 1;
-
-            while (size < nums.size()) {
-                size <<= 1;
-            }
-
-            tree.reserve(size * 2);
-
-            for (int i = 0; i < size * 2; i++) {
-                tree.emplace_back(k);
-            }
-
-            for (int i = 0; i < nums.size(); i++) {
-                int rem = nums[i] % k;
-
-                tree[size + i].ways[rem] = 1;
-                tree[size + i].whole = rem;
-            }
-
-            for (int i = size - 1; i > 0; i--) {
-                tree[i] = combine(
-                    tree[i << 1],
-                    tree[i << 1 | 1]
-                );
-            }
+        // 情况1：完全位于左区间
+        for (int x = 0; x < k; x++) {
+            result[x] = left[x];
         }
 
-        Info combine(const Info& left, const Info& right) {
-            Info merged(mod);
-
-            for (int r = 0; r < mod; r++) {
-                merged.ways[r] = left.ways[r];
-            }
-
-            for (int r = 0; r < mod; r++) {
-                if (right.ways[r] == 0) {
-                    continue;
-                }
-
-                int newRem = (left.whole * r) % mod;
-                merged.ways[newRem] += right.ways[r];
-            }
-
-            merged.whole = (left.whole * right.whole) % mod;
-
-            return merged;
+        // 情况2：包含整个左区间，再接右区间前缀
+        for (int x = 0; x < k; x++) {
+            result[(mulL * x) % k] += right[x];
         }
+    }
 
-        void update(int index, int value) {
-            int pos = size + index;
-            int rem = value % mod;
+    void maintain(int o) {
+        mergePre(tree[o * 2], tree[o * 2 + 1], tree[o]);
+    }
 
-            fill(tree[pos].ways.begin(),
-                 tree[pos].ways.end(), 0);
-
-            tree[pos].ways[rem] = 1;
-            tree[pos].whole = rem;
-
-            pos >>= 1;
-
-            while (pos > 0) {
-                tree[pos] = combine(
-                    tree[pos << 1],
-                    tree[pos << 1 | 1]
-                );
-
-                pos >>= 1;
-            }
+    void build(const vector<int>& nums, int o, int l, int r) {
+        if (l == r) {
+            makeLeaf(o, nums[l]);
+            return;
         }
-
-        Info query(int left, int right) {
-            Info leftPart(mod);
-            Info rightPart(mod);
-
-            left += size;
-            right += size;
-
-            while (left < right) {
-                if (left & 1) {
-                    leftPart = combine(leftPart, tree[left]);
-                    left++;
-                }
-
-                if (right & 1) {
-                    right--;
-                    rightPart = combine(tree[right], rightPart);
-                }
-
-                left >>= 1;
-                right >>= 1;
-            }
-
-            return combine(leftPart, rightPart);
-        }
-    };
+        int m = (l + r) / 2;
+        build(nums, o * 2, l, m);
+        build(nums, o * 2 + 1, m + 1, r);
+        maintain(o);
+    }
 
 public:
-    vector<int> resultArray(
-        vector<int>& nums,
-        int k,
-        vector<vector<int>>& queries
-    ) {
-        SegmentTree tree(nums, k);
-        vector<int> answer;
+    SegmentTree(const vector<int>& nums, int k) : k(k), n(nums.size()) {
+        int size = 2 << (int)ceil(log2(n));
+        tree.resize(size);
+        build(nums, 1, 0, n - 1);
+    }
+
+    void update(int o, int l, int r, int index, int value) {
+        if (l == r) {
+            makeLeaf(o, value);
+            return;
+        }
+        int m = (l + r) / 2;
+        if (index <= m) update(o * 2, l, m, index, value);
+        else update(o * 2 + 1, m + 1, r, index, value);
+        maintain(o);
+    }
+
+    array<int, MAXK> query(int o, int l, int r, int L, int R) {
+        if (L <= l && r <= R) {
+            return tree[o];
+        }
+        int m = (l + r) / 2;
+        if (R <= m) {
+            return query(o * 2, l, m, L, R);
+        }
+        if (L > m) {
+            return query(o * 2 + 1, m + 1, r, L, R);
+        }
+        array<int, MAXK> left = query(o * 2, l, m, L, R);
+        array<int, MAXK> right = query(o * 2 + 1, m + 1, r, L, R);
+        array<int, MAXK> result;
+        mergePre(left, right, result);
+        return result;
+    }
+};
+
+class Solution {
+public:
+    vector<int> resultArray(vector<int>& nums, int k, vector<vector<int>>& queries) {
+        int n = nums.size();
+        SegmentTree seg(nums, k);
+        vector<int> ans;
 
         for (auto& q : queries) {
-            tree.update(q[0], q[1]);
-
-            Info result = tree.query(q[2], nums.size());
-            answer.push_back(result.ways[q[3]]);
+            int index = q[0], value = q[1], start = q[2], x = q[3];
+            seg.update(1, 0, n - 1, index, value);
+            auto pre = seg.query(1, 0, n - 1, start, n - 1);
+            ans.push_back(pre[x]);
         }
-
-        return answer;
+        return ans;
     }
 };
